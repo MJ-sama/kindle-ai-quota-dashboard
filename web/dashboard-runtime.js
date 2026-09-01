@@ -6,14 +6,19 @@
     endpointPointer: 'live-endpoint.js',
     pollEvery: 3 * 60 * 1000,
     pollOffset: 5000,
+    cacheKey: 'kindle_ai_quota_cache_v1',
+    maxCacheAge: 30 * 60 * 1000,
     quietStart: 3,
     quietEnd: 8
   };
   var state = {
     endpoint: win.DASH_LIVE_ENDPOINT || settings.fallbackData,
     latest: null,
-    renderedAt: ''
+    renderedAt: '',
+    usingCache: false,
+    requestId: 0
   };
+  var sourceNames = ['claude', 'codex', 'kimi', 'deepseek'];
   var weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
   var ui = {
@@ -49,6 +54,88 @@
   function timestamp(value) {
     var parsed = Date.parse(value || '');
     return isNaN(parsed) ? 0 : parsed;
+  }
+
+  function finiteNumber(value) {
+    return typeof value === 'number' && isFinite(value);
+  }
+
+  function validTime(value, nullable) {
+    return nullable && value == null ? true : timestamp(value) > 0;
+  }
+
+  function validWindow(value) {
+    return !!value &&
+      typeof value.name === 'string' &&
+      finiteNumber(value.usedPct) &&
+      value.usedPct >= 0 && value.usedPct <= 100 &&
+      validTime(value.resetAt, true) &&
+      (value.barPct == null || (
+        finiteNumber(value.barPct) && value.barPct >= 0 && value.barPct <= 100
+      ));
+  }
+
+  function validSource(name, source) {
+    var index;
+    if (!source || typeof source.ok !== 'boolean' ||
+        typeof source.label !== 'string' || !validTime(source.fetchedAt, false)) return false;
+    if (source.error != null && typeof source.error !== 'string') return false;
+    if (source.stale != null && typeof source.stale !== 'boolean') return false;
+    if (name === 'deepseek') {
+      return !source.ok || finiteNumber(source.balance);
+    }
+    if (!Array.isArray(source.windows)) return false;
+    if (source.ok && !source.windows.length) return false;
+    for (index = 0; index < source.windows.length; index += 1) {
+      if (!validWindow(source.windows[index])) return false;
+    }
+    return true;
+  }
+
+  function validWeather(weather) {
+    if (!weather || typeof weather.ok !== 'boolean' || !validTime(weather.fetchedAt, false)) return false;
+    if (weather.ok && !finiteNumber(weather.tempC)) return false;
+    return true;
+  }
+
+  function validPayload(data) {
+    var index;
+    if (!data || !validTime(data.updatedAt, false) || !data.sources || !validWeather(data.weather)) return false;
+    for (index = 0; index < sourceNames.length; index += 1) {
+      if (!validSource(sourceNames[index], data.sources[sourceNames[index]])) return false;
+    }
+    return true;
+  }
+
+  function readCache() {
+    var raw;
+    var parsed;
+    try {
+      raw = win.localStorage && win.localStorage.getItem(settings.cacheKey);
+      if (!raw) return null;
+      parsed = JSON.parse(raw);
+      if (!parsed || parsed.version !== 1 || !validPayload(parsed.payload)) return null;
+      if (Date.now() - timestamp(parsed.payload.updatedAt) > settings.maxCacheAge) {
+        win.localStorage.removeItem(settings.cacheKey);
+        return null;
+      }
+      return parsed.payload;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function storeCache(data) {
+    var cached;
+    if (!validPayload(data)) return false;
+    cached = readCache();
+    if (cached && timestamp(data.updatedAt) < timestamp(cached.updatedAt)) return false;
+    try {
+      if (win.localStorage) {
+        win.localStorage.setItem(settings.cacheKey, JSON.stringify({ version: 1, payload: data }));
+      }
+    } catch (error) {}
+    return true;
   }
 
   function clockText(value) {
@@ -94,6 +181,14 @@
       ui.className(status, '');
       ui.textNode(alert, '');
       ui.className(alert, 'data-alert');
+      return;
+    }
+
+    if (state.latest && state.usingCache) {
+      ui.textNode(status, '缓存 · ' + age + ' 分钟前');
+      ui.className(status, 'warn');
+      ui.textNode(alert, '网络暂时不可用 · 正在显示最近一次有效数据');
+      ui.className(alert, 'data-alert on');
       return;
     }
 
@@ -251,7 +346,8 @@
       );
       ui.textNode(
         rows[index].querySelector('.q-refresh'),
-        quotaWindow.detailText || remainingTime(quotaWindow.resetAt)
+        ((source.stale || quotaWindow.stale) ? '旧值 · ' : '') +
+          (quotaWindow.detailText || remainingTime(quotaWindow.resetAt))
       );
     }
     if (!windows.length) showUnavailableQuota(rows);
@@ -282,14 +378,15 @@
         ' · 体感 ' + Math.round(Number(weather.feelsLikeC)) +
         '° · 湿度 ' + Math.round(Number(weather.humidity)) +
         '%<br>风 ' + Math.round(Number(weather.windKph)) +
-        'km/h · ' + String(weather.place || '北京')
+        'km/h · ' + String(weather.place || '北京') +
+        (weather.stale ? '<br>旧值 · 天气源本轮失败' : '')
     );
   }
 
   function updateBalance(source) {
     if (source && source.ok && typeof source.balance === 'number') {
       ui.text('deepSeekBalance', '¥ ' + Number(source.balance).toFixed(2));
-      ui.text('deepSeekDetail', '实时余额 · 按量计费');
+      ui.text('deepSeekDetail', source.stale ? '旧值 · 最近一次成功' : '实时余额 · 按量计费');
       return;
     }
     ui.text('deepSeekBalance', '¥ --');
@@ -304,12 +401,14 @@
     }
   }
 
-  function present(data) {
+  function present(data, fromCache) {
     var relativeNode;
-    if (!data || !data.updatedAt || !data.sources) return;
-    if (state.renderedAt && timestamp(data.updatedAt) < timestamp(state.renderedAt)) return;
+    if (!validPayload(data)) return false;
+    if (state.renderedAt && timestamp(data.updatedAt) < timestamp(state.renderedAt)) return false;
+    if (!fromCache && !storeCache(data)) return false;
 
     state.latest = data;
+    state.usingCache = !!fromCache;
     if (data.updatedAt !== state.renderedAt) {
       state.renderedAt = data.updatedAt;
       updateWeather(data.weather);
@@ -322,20 +421,40 @@
       if (relativeNode) ui.attribute(relativeNode, 'data-ts', data.updatedAt);
     }
     updateFreshness();
+    return true;
+  }
+
+  function showValidatedCache() {
+    var cached = readCache();
+    return cached ? present(cached, true) : false;
   }
 
   function requestData(url, canFallback) {
+    var requestId;
     var separator;
     if (!url || url.indexOf('__LIVE_') === 0) return;
+    requestId = ++state.requestId;
     separator = url.indexOf('?') < 0 ? '?' : '&';
+    win.DASH_DATA = null;
     attachScript(
       url + separator + '_=' + Date.now(),
       function () {
-        present(win.DASH_DATA);
+        if (requestId !== state.requestId) return;
+        if (!present(win.DASH_DATA, false)) {
+          if (canFallback && url !== settings.fallbackData) requestData(settings.fallbackData, false);
+          else {
+            state.usingCache = true;
+            if (!showValidatedCache()) updateFreshness();
+          }
+        }
       },
       function () {
+        if (requestId !== state.requestId) return;
         if (canFallback && url !== settings.fallbackData) {
           requestData(settings.fallbackData, false);
+        } else {
+          state.usingCache = true;
+          if (!showValidatedCache()) updateFreshness();
         }
       }
     );
@@ -343,11 +462,13 @@
 
   function refresh() {
     requestDeviceStatus();
+    win.DASH_LIVE_ENDPOINT = '';
     attachScript(
       settings.endpointPointer + '?_=' + Date.now(),
       function () {
         var supplied = win.DASH_LIVE_ENDPOINT || '';
         if (supplied && supplied.indexOf('__LIVE_') !== 0) state.endpoint = supplied;
+        else state.endpoint = settings.fallbackData;
         requestData(state.endpoint, true);
       },
       function () {
@@ -390,7 +511,7 @@
     }, delay);
   }
 
-  present(win.DASH_DATA);
+  if (!present(win.DASH_DATA, false)) showValidatedCache();
   updateClock();
   updateBattery();
   if (!isQuiet()) refresh();

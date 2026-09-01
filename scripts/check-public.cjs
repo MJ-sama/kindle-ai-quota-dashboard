@@ -2,7 +2,32 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { ROOT } = require('../src/lib/config.cjs');
+
+function toGitPath(filePath) {
+  return filePath.split(path.sep).join('/');
+}
+
+// This check answers "could this file enter the public repository?", not
+// merely "does this file exist locally?". Runtime files such as config.json
+// are expected to exist locally and are safe only when Git actually ignores
+// them. If Git cannot answer, stay conservative and treat the file as public.
+function gitIgnoredPaths(paths, rootDir = ROOT) {
+  if (!paths.length) return new Set();
+  const result = spawnSync('git', ['check-ignore', '-z', '--stdin'], {
+    cwd: rootDir,
+    input: `${paths.join('\0')}\0`,
+    encoding: 'utf8',
+  });
+  if (result.error || result.status > 1) return new Set();
+  return new Set(
+    String(result.stdout || '')
+      .split('\0')
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
+}
 
 const ignoredDirs = new Set([
   '.git',
@@ -43,28 +68,44 @@ function walk(dir) {
   return output;
 }
 
-const problems = [];
-for (const filePath of walk(ROOT)) {
-  const relative = path.relative(ROOT, filePath);
-  if (relative === path.join('scripts', 'check-public.cjs')) continue;
-  const inExamples = relative.startsWith(`examples${path.sep}`);
-  if (!inExamples && forbiddenNames.some((pattern) => pattern.test(path.basename(filePath)))) {
-    problems.push(`${relative}: 不应进入公开仓库的运行产物`);
-    continue;
+function collectProblems(rootDir = ROOT) {
+  const problems = [];
+  const files = walk(rootDir);
+  const relatives = files.map((filePath) => toGitPath(path.relative(rootDir, filePath)));
+  const ignored = gitIgnoredPaths(relatives, rootDir);
+
+  for (const filePath of files) {
+    const relative = path.relative(rootDir, filePath);
+    const gitRelative = toGitPath(relative);
+    if (rootDir === ROOT && relative === path.join('scripts', 'check-public.cjs')) continue;
+    if (ignored.has(gitRelative)) continue;
+    const inExamples = relative.startsWith(`examples${path.sep}`);
+    if (!inExamples && forbiddenNames.some((pattern) => pattern.test(path.basename(filePath)))) {
+      problems.push(`${relative}: 不应进入公开仓库的运行产物`);
+      continue;
+    }
+    if (fs.statSync(filePath).size > 2 * 1024 * 1024) {
+      problems.push(`${relative}: 文件超过 2 MiB，需人工确认`);
+      continue;
+    }
+    const content = fs.readFileSync(filePath, 'utf8');
+    for (const item of contentPatterns) {
+      if (item.regex.test(content)) problems.push(`${relative}: ${item.label}`);
+    }
   }
-  if (fs.statSync(filePath).size > 2 * 1024 * 1024) {
-    problems.push(`${relative}: 文件超过 2 MiB，需人工确认`);
-    continue;
-  }
-  const content = fs.readFileSync(filePath, 'utf8');
-  for (const item of contentPatterns) {
-    if (item.regex.test(content)) problems.push(`${relative}: ${item.label}`);
+  return problems;
+}
+
+function main() {
+  const problems = collectProblems();
+  if (problems.length) {
+    process.stderr.write(`公开前检查失败：\n- ${problems.join('\n- ')}\n`);
+    process.exitCode = 1;
+  } else {
+    process.stdout.write('公开前检查通过：未发现已知私人路径、运行数据或疑似明文秘密。\n');
   }
 }
 
-if (problems.length) {
-  process.stderr.write(`公开前检查失败：\n- ${problems.join('\n- ')}\n`);
-  process.exitCode = 1;
-} else {
-  process.stdout.write('公开前检查通过：未发现已知私人路径、运行数据或疑似明文秘密。\n');
-}
+if (require.main === module) main();
+
+module.exports = { collectProblems, gitIgnoredPaths };
