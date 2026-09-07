@@ -140,7 +140,8 @@ test('browser runtime restores a valid cache and rejects older replacement data'
   assert.ok(cached, 'fresh data should be cached');
 
   const restored = runBrowserRuntime(null, storage);
-  assert.equal(restored.nodes.get('#deepSeekBalance').textContent, '¥ 12.34');
+  assert.equal(restored.nodes.get('#codexRemaining').textContent, '82%');
+  assert.notEqual(restored.nodes.get('#codexReset').textContent, '--月--日 --:--');
 
   const older = demoSnapshot();
   older.updatedAt = '2025-01-01T00:00:00+08:00';

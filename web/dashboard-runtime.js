@@ -177,6 +177,7 @@
     }
 
     if (isQuiet()) {
+      updateComputerMetric('省电中', false, '夜间暂停刷新 · 08:00 恢复');
       ui.textNode(status, '夜间省电 · 08:00恢复');
       ui.className(status, '');
       ui.textNode(alert, '');
@@ -185,6 +186,7 @@
     }
 
     if (state.latest && state.usingCache) {
+      updateComputerMetric('离线', false, '正在显示 ' + age + ' 分钟前的缓存');
       ui.textNode(status, '缓存 · ' + age + ' 分钟前');
       ui.className(status, 'warn');
       ui.textNode(alert, '网络暂时不可用 · 正在显示最近一次有效数据');
@@ -193,6 +195,7 @@
     }
 
     if (!state.latest || age > 15) {
+      updateComputerMetric('离线', false, '最后同步 ' + lastClock);
       ui.textNode(status, '离线 · 最后 ' + lastClock);
       ui.className(status, 'warn');
       ui.textNode(alert, '电脑或数据链路已离线 · 最后在线 ' + lastClock);
@@ -201,6 +204,7 @@
     }
 
     if (age >= 7) {
+      updateComputerMetric('延迟', false, age + ' 分钟未收到新数据');
       ui.textNode(status, '延迟 ' + age + ' 分钟 · ' + lastClock);
       ui.className(status, 'warn');
       ui.textNode(alert, '实时数据延迟 ' + age + ' 分钟 · 正在显示最后一次结果');
@@ -208,6 +212,7 @@
       return;
     }
 
+    updateComputerMetric('在线', true, '最近同步 ' + lastClock);
     ui.textNode(status, '实时 · ' + lastClock);
     ui.className(status, '');
     ui.textNode(alert, '');
@@ -241,11 +246,18 @@
       if (typeof device.charging === 'boolean') charging = device.charging;
       if (device.charging === 0 || device.charging === 1) charging = device.charging === 1;
     }
-    if (percent === null || isNaN(percent)) return;
+    if (percent === null || isNaN(percent)) {
+      ui.text('batteryValue', '--%');
+      ui.text('batteryDetail', '浏览器模式无法读取 · 启动器模式可用');
+      return;
+    }
 
     percent = Math.max(0, Math.min(100, percent));
     ui.text('batPct', (charging ? '⚡ ' : '') + percent + '%');
     ui.attribute(ui.find('batFill'), 'width', Math.round(18 * percent / 100));
+    ui.text('batteryValue', (charging ? '⚡ ' : '') + Math.round(percent) + '%');
+    ui.style(ui.find('batteryBar'), 'width', percent + '%');
+    ui.text('batteryDetail', charging ? '正在充电' : (percent <= 20 ? '电量偏低 · 请充电' : '设备电量正常'));
   }
 
   function attachScript(url, onSuccess, onFailure) {
@@ -290,6 +302,41 @@
     if (days) return '↻ ' + days + 'd' + (hours ? ' ' + hours + 'h' : '');
     if (hours) return '↻ ' + hours + 'h' + twoDigits(minutes) + 'm';
     return '↻ ' + minutes + 'm';
+  }
+
+  function updateComputerMetric(label, online, detail) {
+    ui.text('computerStatus', label);
+    ui.text('computerDetail', detail);
+    ui.className(ui.find('computerDot'), online ? 'status-dot on' : 'status-dot');
+  }
+
+  function resetDateText(value) {
+    var date = new Date(value);
+    if (!value || isNaN(date.getTime())) return '--月--日 --:--';
+    return (date.getMonth() + 1) + '月' + date.getDate() + '日 ' +
+      twoDigits(date.getHours()) + ':' + twoDigits(date.getMinutes());
+  }
+
+  function updateCodexMetrics(source) {
+    var windows = source && source.ok && source.windows ? source.windows : [];
+    var quotaWindow = windows.length ? windows[0] : null;
+    var used;
+    var remaining;
+    if (!quotaWindow) {
+      ui.text('codexRemaining', '--%');
+      ui.style(ui.find('codexRemainingBar'), 'width', '0%');
+      ui.text('codexRemainingDetail', 'Codex 数据暂不可用');
+      ui.text('codexReset', '--月--日 --:--');
+      ui.text('codexResetDetail', '等待重置时间');
+      return;
+    }
+    used = Math.max(0, Math.min(100, Number(quotaWindow.usedPct) || 0));
+    remaining = Math.round(100 - used);
+    ui.text('codexRemaining', remaining + '%');
+    ui.style(ui.find('codexRemainingBar'), 'width', remaining + '%');
+    ui.text('codexRemainingDetail', String(quotaWindow.name || '额度') + ' · 已用 ' + Math.round(used) + '%');
+    ui.text('codexReset', resetDateText(quotaWindow.resetAt));
+    ui.text('codexResetDetail', remainingTime(quotaWindow.resetAt).replace(/^↻\s*/, '倒计时 '));
   }
 
   function showUnavailableQuota(rows) {
@@ -412,10 +459,7 @@
     if (data.updatedAt !== state.renderedAt) {
       state.renderedAt = data.updatedAt;
       updateWeather(data.weather);
-      updateQuotaCard('cardClaude', data.sources.claude);
-      updateQuotaCard('cardCodex', data.sources.codex);
-      updateQuotaCard('cardKimi', data.sources.kimi);
-      updateBalance(data.sources.deepseek);
+      updateCodexMetrics(data.sources.codex);
       updateQuote(data.quote);
       relativeNode = ui.find('relTime');
       if (relativeNode) ui.attribute(relativeNode, 'data-ts', data.updatedAt);
