@@ -1,5 +1,5 @@
 window.DASH_DATA = {
-  "updatedAt": "2026-09-08T02:33:25.485+08:00",
+  "updatedAt": "2026-09-08T02:43:27.497+08:00",
   "weather": {
     "ok": false,
     "description": null,
@@ -11,7 +11,7 @@ window.DASH_DATA = {
     "windDir": null,
     "place": null,
     "observedAt": null,
-    "fetchedAt": "2026-09-08T02:33:25.485+08:00",
+    "fetchedAt": "2026-09-08T02:43:27.497+08:00",
     "error": "未配置天气文件"
   },
   "quote": null,
@@ -20,7 +20,7 @@ window.DASH_DATA = {
       "ok": false,
       "label": "Claude",
       "windows": [],
-      "fetchedAt": "2026-09-08T02:33:22.599+08:00",
+      "fetchedAt": "2026-09-08T02:43:23.306+08:00",
       "error": "未启用",
       "disabled": true
     },
@@ -37,13 +37,13 @@ window.DASH_DATA = {
       "fetchedAt": "2026-09-07T23:23:27.571+08:00",
       "error": "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)",
       "stale": true,
-      "lastAttemptAt": "2026-09-08T02:33:22.603+08:00"
+      "lastAttemptAt": "2026-09-08T02:43:23.310+08:00"
     },
     "kimi": {
       "ok": false,
       "label": "Kimi",
       "windows": [],
-      "fetchedAt": "2026-09-08T02:33:23.014+08:00",
+      "fetchedAt": "2026-09-08T02:43:24.524+08:00",
       "error": "未启用",
       "disabled": true
     },
@@ -53,7 +53,7 @@ window.DASH_DATA = {
       "balance": null,
       "currency": "CNY",
       "detail": null,
-      "fetchedAt": "2026-09-08T02:33:23.015+08:00",
+      "fetchedAt": "2026-09-08T02:43:24.524+08:00",
       "error": "未启用",
       "disabled": true
     }
