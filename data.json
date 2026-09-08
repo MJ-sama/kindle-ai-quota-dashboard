@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-08T21:53:30.524+08:00",
+  "updatedAt": "2026-09-08T23:13:21.737+08:00",
   "weather": {
     "ok": false,
     "description": null,
@@ -11,7 +11,7 @@
     "windDir": null,
     "place": null,
     "observedAt": null,
-    "fetchedAt": "2026-09-08T21:53:30.524+08:00",
+    "fetchedAt": "2026-09-08T23:13:21.738+08:00",
     "error": "未配置天气文件"
   },
   "quote": null,
@@ -20,7 +20,7 @@
       "ok": false,
       "label": "Claude",
       "windows": [],
-      "fetchedAt": "2026-09-08T21:53:26.946+08:00",
+      "fetchedAt": "2026-09-08T23:13:17.759+08:00",
       "error": "未启用",
       "disabled": true
     },
@@ -35,13 +35,15 @@
         }
       ],
       "fetchedAt": "2026-09-08T21:53:26.959+08:00",
-      "error": null
+      "error": "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)",
+      "stale": true,
+      "lastAttemptAt": "2026-09-08T23:13:17.761+08:00"
     },
     "kimi": {
       "ok": false,
       "label": "Kimi",
       "windows": [],
-      "fetchedAt": "2026-09-08T21:53:27.920+08:00",
+      "fetchedAt": "2026-09-08T23:13:18.725+08:00",
       "error": "未启用",
       "disabled": true
     },
@@ -51,7 +53,7 @@
       "balance": null,
       "currency": "CNY",
       "detail": null,
-      "fetchedAt": "2026-09-08T21:53:27.926+08:00",
+      "fetchedAt": "2026-09-08T23:13:18.725+08:00",
       "error": "未启用",
       "disabled": true
     }
