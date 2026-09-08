@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-08T14:43:22.817+08:00",
+  "updatedAt": "2026-09-08T14:53:22.893+08:00",
   "weather": {
     "ok": false,
     "description": null,
@@ -11,7 +11,7 @@
     "windDir": null,
     "place": null,
     "observedAt": null,
-    "fetchedAt": "2026-09-08T14:43:22.817+08:00",
+    "fetchedAt": "2026-09-08T14:53:22.893+08:00",
     "error": "未配置天气文件"
   },
   "quote": null,
@@ -20,7 +20,7 @@
       "ok": false,
       "label": "Claude",
       "windows": [],
-      "fetchedAt": "2026-09-08T14:43:20.726+08:00",
+      "fetchedAt": "2026-09-08T14:53:20.872+08:00",
       "error": "未启用",
       "disabled": true
     },
@@ -30,18 +30,18 @@
       "windows": [
         {
           "name": "周",
-          "usedPct": 10,
+          "usedPct": 11,
           "resetAt": "2026-09-15T11:48:36.000+08:00"
         }
       ],
-      "fetchedAt": "2026-09-08T14:43:20.727+08:00",
+      "fetchedAt": "2026-09-08T14:53:20.874+08:00",
       "error": null
     },
     "kimi": {
       "ok": false,
       "label": "Kimi",
       "windows": [],
-      "fetchedAt": "2026-09-08T14:43:20.992+08:00",
+      "fetchedAt": "2026-09-08T14:53:21.131+08:00",
       "error": "未启用",
       "disabled": true
     },
@@ -51,7 +51,7 @@
       "balance": null,
       "currency": "CNY",
       "detail": null,
-      "fetchedAt": "2026-09-08T14:43:20.992+08:00",
+      "fetchedAt": "2026-09-08T14:53:21.131+08:00",
       "error": "未启用",
       "disabled": true
     }
